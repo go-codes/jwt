@@ -1,19 +1,18 @@
 package jwt
 
 import (
+	"errors"
 	"fmt"
 	jwtGo "github.com/dgrijalva/jwt-go"
-	"github.com/gin-gonic/gin"
-	"net/http"
 	"time"
 )
 
 type Jwt struct {
-	Conf *Config
+	Conf Config
 	Secret []byte
 }
 
-func New(conf *Config) *Jwt {
+func New(conf Config) *Jwt {
 	return &Jwt{
 		Conf: conf,
 		Secret: []byte(conf.Secret),
@@ -39,34 +38,19 @@ func (j *Jwt) Token(data map[string]interface{}) (string, error) {
 	return tokenString, err
 }
 
-func (j *Jwt) Verify (tokenStr string) {
-
+func (j *Jwt) Verify (tokenStr string) (map[string]interface{}, error){
 	token, err := jwtGo.Parse(tokenStr, func(token *jwtGo.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwtGo.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-
 		return j.Secret, nil
-	})
-
-	if claims, ok := token.Claims.(jwtGo.MapClaims); ok && token.Valid {
-		fmt.Println(claims)
-	} else {
-		fmt.Println(err)
-	}
-}
-
-func (j *Jwt) Parse (tokenStr string) (map[string]interface{}, error){
-	hmacSecret := []byte(j.Conf.Secret)
-	token, err := jwtGo.Parse(tokenStr, func(token *jwtGo.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwtGo.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-
-		return hmacSecret, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return token.Claims.(jwtGo.MapClaims)
+	claims, ok := token.Claims.(jwtGo.MapClaims)
+	if !ok {
+		return nil, errors.New("unparsable structured data")
+	}
+	return claims, nil
 }
